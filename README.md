@@ -34,6 +34,15 @@ On success, you should see a message like:
 Generated 500 rows -> data\student_data.csv
 ```
 
+## Streamlit app
+Launch the interactive dashboard (filters, charts, download, regenerate data):
+
+```powershell
+streamlit run .\app.py
+```
+
+Then open the URL shown in the terminal, e.g. `http://localhost:8501`.
+
 ## Notes
 - Height is in centimeters (150–200).
 - Weight is in kilograms (50–100).
