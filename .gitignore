@@ -1,0 +1,72 @@
+# --- Python build/cache ---
+__pycache__/
+*.py[cod]
+*.so
+
+# Bytecode and optimization artifacts
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# Virtual environments
+venv/
+.VENV/
+.venv/
+ENV/
+env/
+
+# Jupyter & Streamlit artifacts
+.ipynb_checkpoints/
+.streamlit/
+# Streamlit generated folders (if any future caching)
+
+# Logs & runtime
+*.log
+*.pid
+
+# Environment & secrets
+.env
+*.env
+.env.*
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.swp
+
+# OS / misc
+.DS_Store
+Thumbs.db
+
+# Test / coverage outputs (if added later)
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Annotation / profiling
+.prof
+.mypy_cache/
+.pyre/
+
+# Data artifacts (keep the schema, ignore large regenerated datasets)
+# Uncomment if you don't want to commit generated data:
+# data/*.csv
+# data/*.parquet
+
+# If you later add models or artifacts:
+models/
+checkpoints/
+
+# Cache from tools
+.cache/
+
+# Node (if any frontend experiments later)
+node_modules/
+
+# VS Code workspace state
+*.code-workspace

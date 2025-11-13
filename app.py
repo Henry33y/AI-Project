@@ -161,3 +161,59 @@ if not num_df.empty and num_df.shape[1] > 1:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Not enough numeric data to compute correlation.")
+
+# Automated insight generation (additive; does not modify existing visuals)
+st.subheader("Automated Insights")
+
+@st.cache_data(show_spinner=False)
+def generate_insights(df_in: pd.DataFrame) -> list[str]:
+    insights: list[str] = []
+    n = len(df_in)
+    if n == 0:
+        insights.append("Current filters return no rows; cannot compute insights.")
+        return insights
+    # GPA vs WASSCE Aggregate
+    if {'GPA','WASSCE_Aggregate'}.issubset(df_in.columns):
+        corr_wass = df_in['GPA'].corr(df_in['WASSCE_Aggregate'])
+        if corr_wass < -0.1:
+            insights.append(f"Lower WASSCE Aggregate (better exam score) tends to align with higher GPA (correlation {corr_wass:.2f}).")
+        elif corr_wass > 0.1:
+            insights.append(f"Higher WASSCE Aggregate is associated with higher GPA (correlation {corr_wass:.2f}); suggests aggregate may be inverted relative to expected scale.")
+        else:
+            insights.append(f"GPA shows only a weak linear relationship with WASSCE Aggregate (correlation {corr_wass:.2f}).")
+    # Study hours relationship
+    if {'GPA','study_hours'}.issubset(df_in.columns):
+        corr_sh = df_in['GPA'].corr(df_in['study_hours'])
+        if corr_sh > 0.15:
+            insights.append(f"Students who report more study hours tend to have higher GPA (correlation {corr_sh:.2f}).")
+        elif corr_sh < -0.15:
+            insights.append(f"Unexpectedly, more study hours align with lower GPA (correlation {corr_sh:.2f}); could indicate reactive studying.")
+        else:
+            insights.append(f"Study hours show a weak linear association with GPA (correlation {corr_sh:.2f}).")
+    # Gender differences
+    if 'gender' in df_in.columns and 'GPA' in df_in.columns:
+        gpa_by_gender = df_in.groupby('gender')['GPA'].mean().round(2)
+        if len(gpa_by_gender) > 1:
+            best_gender = gpa_by_gender.idxmax()
+            spread = gpa_by_gender.max() - gpa_by_gender.min()
+            insights.append(f"Average GPA varies by gender: {', '.join([f"{g}: {val:.2f}" for g, val in gpa_by_gender.items()])} (spread {spread:.2f}). {best_gender} currently leads.")
+    # Simple OLS feature influence (predicting GPA)
+    candidate_features = [c for c in ['WASSCE_Aggregate','study_hours','BMI','age'] if c in df_in.columns]
+    if len(candidate_features) >= 2 and 'GPA' in df_in.columns:
+        try:
+            import statsmodels.api as sm  # ensure available
+            X = df_in[candidate_features].copy()
+            X = sm.add_constant(X)
+            y = df_in['GPA']
+            model = sm.OLS(y, X).fit()
+            coefs = model.params.drop('const')
+            ranked = coefs.abs().sort_values(ascending=False)
+            top_features = ', '.join([f"{f} ({coefs[f]:.2f})" for f in ranked.index[:3]])
+            insights.append(f"Top linear predictors of GPA (OLS absolute coefficient ranking): {top_features}.")
+        except Exception as e:
+            insights.append(f"Regression insight skipped due to error: {e}.")
+    insights.append(f"Insights generated from {n} filtered students.")
+    return insights
+
+insight_lines = generate_insights(filtered)
+st.markdown("\n".join([f"- {line}" for line in insight_lines]))
