@@ -49,7 +49,7 @@ Then open the URL shown in the terminal, e.g. `http://localhost:8501`.
 - BMI is computed as kg/m^2 and rounded to 1 decimal place.
 - Level is one of 100, 200, 300, 400.
 - Faculty is chosen from Computing, Business, Theology, Engineering; department matches the selected faculty.
-- DOB is between 1998 and 2007 inclusive, and `age` is derived from DOB at runtime.
+- Year of Birth (`yob`) is between 1998 and 2007; `age` is derived at runtime from `yob`.
 - GPA is a float in [1.5, 4.0], rounded to 2 decimals.
 - Study hours is a float in [1.0, 10.0], rounded to 1 decimal.
 - WASSCE_Aggregate is an integer in [6, 48].

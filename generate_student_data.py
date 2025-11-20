@@ -26,24 +26,16 @@ LEVELS = [100, 200, 300, 400]
 GENDERS = ["Male", "Female"]
 
 
-def random_date_between(year_start: int, year_end: int, rng: np.random.Generator) -> date:
-    """Generate a random date between Jan 1 of year_start and Dec 31 of year_end (inclusive)."""
-    start_dt = datetime(year_start, 1, 1)
-    end_dt = datetime(year_end, 12, 31)
-    delta_days = (end_dt - start_dt).days
-    offset_days = int(rng.integers(0, delta_days + 1))
-    return (start_dt + timedelta(days=offset_days)).date()
+def random_year_between(year_start: int, year_end: int, rng: np.random.Generator) -> int:
+    """Generate a random integer year between year_start and year_end inclusive."""
+    return int(rng.integers(year_start, year_end + 1))
 
 
-def compute_age(dob: date, today: date | None = None) -> int:
-    """Compute age in full years given a date of birth."""
+def compute_age_from_yob(yob: int, today: date | None = None) -> int:
+    """Compute age approximately as current_year - year_of_birth."""
     if today is None:
         today = date.today()
-    years = today.year - dob.year
-    # Adjust if birthday hasn't occurred yet this year
-    if (today.month, today.day) < (dob.month, dob.day):
-        years -= 1
-    return years
+    return today.year - yob
 
 
 def generate_student_row(rng: np.random.Generator) -> dict:
@@ -61,9 +53,9 @@ def generate_student_row(rng: np.random.Generator) -> dict:
     faculty = str(rng.choice(FACULTIES))
     department = str(rng.choice(FACULTY_DEPARTMENTS[faculty]))
 
-    # DOB and age
-    dob = random_date_between(1998, 2007, rng)
-    age = compute_age(dob)
+    # Year of birth (yob) and derived age
+    yob = random_year_between(1998, 2007, rng)
+    age = compute_age_from_yob(yob)
 
     # Gender
     gender = str(rng.choice(GENDERS))
@@ -84,10 +76,9 @@ def generate_student_row(rng: np.random.Generator) -> dict:
         "level": level,
         "faculty": faculty,
         "department": department,
-        "dob": dob.isoformat(),
+        "yob": yob,
         "GPA": gpa,
         "gender": gender,
-        "age": age,
         "study_hours": study_hours,
         "WASSCE_Aggregate": wassce_agg,
     }
@@ -105,10 +96,9 @@ def generate_dataset(n_rows: int = 500, seed: int | None = 42) -> pd.DataFrame:
         "level",
         "faculty",
         "department",
-        "dob",
+        "yob",
         "GPA",
         "gender",
-        "age",
         "study_hours",
         "WASSCE_Aggregate",
     ]

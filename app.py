@@ -16,24 +16,20 @@ st.title("Student Analytics Dashboard")
 @st.cache_data(show_spinner=True)
 def load_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
-    # Ensure types
-    if 'dob' in df.columns:
-        # keep as string for display, compute age safely if needed
-        try:
-            dob_dt = pd.to_datetime(df['dob'], errors='coerce')
-            # Re-derive age to keep consistent with today's date
-            age_calc = (pd.Timestamp(datetime.now().date()) - dob_dt).dt.days // 365
-            df['age'] = age_calc.fillna(df.get('age'))
-        except Exception:
-            pass
-    # Ensure expected columns exist
+    # Ensure expected columns exist (using yob; age is derived below)
     required_cols = [
-        'height','weight','BMI','level','faculty','department','dob',
-        'GPA','gender','age','study_hours','WASSCE_Aggregate'
+        'height','weight','BMI','level','faculty','department','yob',
+        'GPA','gender','study_hours','WASSCE_Aggregate'
     ]
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         raise ValueError(f"Missing expected columns: {missing}")
+    # Derive age from yob
+    try:
+        now_year = datetime.now().year
+        df['age'] = now_year - df['yob'].astype(int)
+    except Exception:
+        df['age'] = np.nan
     return df
 
 # Regenerate dataset utilities
@@ -145,7 +141,10 @@ with col2:
 
 col3, col4 = st.columns(2)
 with col3:
-    fig = px.scatter(filtered, x='study_hours', y='GPA', color='gender', title='Study Hours vs GPA', trendline='ols')
+    try:
+        fig = px.scatter(filtered, x='study_hours', y='GPA', color='gender', title='Study Hours vs GPA', trendline='ols')
+    except Exception:
+        fig = px.scatter(filtered, x='study_hours', y='GPA', color='gender', title='Study Hours vs GPA')
     st.plotly_chart(fig, use_container_width=True)
 
 with col4:
