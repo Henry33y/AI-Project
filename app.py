@@ -130,7 +130,7 @@ c6.metric("High-GPA Accuracy (full data)", f"{cls_result.accuracy:.2f}")
 
 # Data table and download
 st.subheader("Filtered Data")
-st.dataframe(filtered, use_container_width=True, height=350)
+st.dataframe(filtered, width="stretch", height=350)
 
 csv_bytes = filtered.to_csv(index=False).encode('utf-8')
 st.download_button("Download filtered CSV", data=csv_bytes, file_name="filtered_student_data.csv", mime="text/csv")
@@ -141,7 +141,7 @@ st.subheader("Visualizations")
 col1, col2 = st.columns(2)
 with col1:
     fig = px.histogram(filtered, x='GPA', nbins=20, title='GPA Distribution', marginal='box')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     gpa_mean = filtered['GPA'].mean()
     st.markdown(
         f"This shows how student GPAs are spread out. Bars further right mean more high-performing students. "
@@ -150,7 +150,7 @@ with col1:
 
 with col2:
     fig = px.scatter(filtered, x='WASSCE_Aggregate', y='GPA', color='faculty', title='WASSCE vs GPA', hover_data=['department','level'])
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.markdown(
         "Each dot is a student. Higher dots have better GPA. In this data, students with stronger WASSCE scores often sit slightly higher on the chart, "
         "but there are also many exceptions (so WASSCE helps, but does not fully determine GPA)."
@@ -162,7 +162,7 @@ with col3:
         fig = px.scatter(filtered, x='study_hours', y='GPA', color='gender', title='Study Hours vs GPA', trendline='ols')
     except Exception:
         fig = px.scatter(filtered, x='study_hours', y='GPA', color='gender', title='Study Hours vs GPA')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.markdown(
         "Dots to the right studied more each day. In the current data, higher GPAs tend to appear among students who study a bit more, "
         "but the relationship is gentle rather than a perfect straight line."
@@ -170,7 +170,7 @@ with col3:
 
 with col4:
     fig = px.box(filtered, x='faculty', y='GPA', color='faculty', title='GPA by Faculty')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     faculty_gpa = filtered.groupby('faculty')['GPA'].mean().sort_values(ascending=False)
     top_faculty = faculty_gpa.index[0]
     st.markdown(
@@ -184,7 +184,7 @@ num_df = filtered.select_dtypes(include='number')
 if not num_df.empty and num_df.shape[1] > 1:
     corr = num_df.corr(numeric_only=True)
     fig = px.imshow(corr, text_auto=True, color_continuous_scale='RdBu', origin='lower', title='Correlation Heatmap')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.markdown(
         "Dark red squares mean two numbers tend to rise together; dark blue means when one goes up, the other often goes down. "
         "In this sample, GPA is only weakly linked to the other numeric features, which is expected because the data is synthetic and fairly random."
@@ -199,7 +199,7 @@ top_reg = reg_result.coefficients.head(10)
 if not top_reg.empty:
     fig = px.bar(top_reg, x="feature", y="coefficient", title="Top Regression Coefficients (GPA)")
     fig.update_layout(xaxis_title="Feature", yaxis_title="Coefficient", xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     strongest_pos_reg = top_reg.iloc[0]
     strongest_neg_reg = reg_result.coefficients.sort_values("coefficient").iloc[0]
     st.markdown(
@@ -211,7 +211,7 @@ top_cls = cls_result.coefficients.head(10)
 if not top_cls.empty:
     fig = px.bar(top_cls, x="feature", y="abs_coefficient", title="Top Logistic Coefficients (High GPA)")
     fig.update_layout(xaxis_title="Feature", yaxis_title="|Coefficient|", xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     most_influential = top_cls.iloc[0]
     st.markdown(
         "Taller bars are features the classifier pays more attention to when deciding who is likely to have a high GPA (3.5+). "
@@ -229,11 +229,13 @@ st.markdown(
 col_left, col_right = st.columns(2)
 
 with col_left:
-    sel_faculty = st.selectbox("Faculty", sorted(df["faculty"].unique().tolist()))
-    deps_for_fac = sorted(df.loc[df["faculty"] == sel_faculty, "department"].unique().tolist())
+    faculty_options = sorted(df["faculty"].dropna().astype(str).unique().tolist())
+    sel_faculty = st.selectbox("Faculty", faculty_options)
+    deps_for_fac = sorted(df.loc[df["faculty"] == sel_faculty, "department"].dropna().astype(str).unique().tolist())
     sel_department = st.selectbox("Department", deps_for_fac)
-    sel_level = st.selectbox("Level", sorted(df["level"].unique().tolist()))
-    sel_gender = st.selectbox("Gender", sorted(df["gender"].unique().tolist()))
+    sel_level = st.selectbox("Level", sorted(df["level"].dropna().unique().tolist()))
+    gender_options = sorted(df["gender"].dropna().astype(str).unique().tolist())
+    sel_gender = st.selectbox("Gender", gender_options)
 
     yob_min = int(df["yob"].min())
     yob_max = int(df["yob"].max())
