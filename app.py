@@ -14,18 +14,21 @@ from model_utils import (
 )
 
 # Paths
-DATA_PATH = os.path.join("data", "student_data.csv")
+DATA_PATH = os.path.join(
+    "data",
+    "students-export-2025-12-04T07_42_46.120Z.csv",
+)
 
 st.set_page_config(page_title="Student Analytics Dashboard", layout="wide")
 st.title("Student Analytics Dashboard")
 
-# Data loading with cache
+# Data loading with cache (delegates to model utilities for normalization)
 @st.cache_data(show_spinner=True)
 def load_data(path: str) -> pd.DataFrame:
     df = load_model_data(path)
     return df
 
-# Regenerate dataset utilities
+# Regenerate dataset utilities (fallback synthetic generator)
 def regenerate_dataset(n_rows: int = 500, seed: int | None = 42) -> None:
     try:
         # Import from local script
@@ -36,7 +39,7 @@ def regenerate_dataset(n_rows: int = 500, seed: int | None = 42) -> None:
     df_new = generate_dataset(n_rows=n_rows, seed=seed)
     save_dataset(df_new, DATA_PATH)
 
-# Sidebar controls
+# Sidebar controls for administrative actions
 with st.sidebar:
     st.header("Controls")
     with st.expander("Generate / Reload Data", expanded=True):
@@ -48,12 +51,12 @@ with st.sidebar:
             st.success("Dataset regenerated.")
             st.rerun()
 
-# Ensure data file exists
+# Ensure data file exists before proceeding
 if not os.path.exists(DATA_PATH):
     st.warning("Dataset not found. Generating a fresh dataset...")
     regenerate_dataset(n_rows=500, seed=42)
 
-# Load data and train models
+# Load data and train ML models
 try:
     df = load_data(DATA_PATH)
 except Exception as e:
@@ -99,7 +102,7 @@ with st.sidebar:
     sh_min, sh_max = float(df['study_hours'].min()), float(df['study_hours'].max())
     sel_sh = st.slider("Study hours", min_value=float(np.floor(sh_min)), max_value=float(np.ceil(sh_max)), value=(float(np.floor(sh_min)), float(np.ceil(sh_max))), step=0.1)
 
-# Apply filters
+# Apply multi-dimensional filters to the dataset
 mask = (
     df['faculty'].isin(sel_fac) &
     df['department'].isin(sel_dep) &
@@ -114,7 +117,7 @@ mask = (
 
 filtered = df.loc[mask].copy()
 
-# KPIs
+# KPI summary tiles
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Students", f"{len(filtered):,}")
 c2.metric("Avg GPA", f"{filtered['GPA'].mean():.2f}")
@@ -189,7 +192,7 @@ if not num_df.empty and num_df.shape[1] > 1:
 else:
     st.info("Not enough numeric data to compute correlation.")
 
-# Model insights
+# Model insights from the trained pipelines
 st.subheader("Model Insights")
 
 top_reg = reg_result.coefficients.head(10)

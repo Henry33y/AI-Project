@@ -5,13 +5,17 @@ from typing import Tuple, Dict, Any
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, confusion_matrix, classification_report
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
-DATA_PATH = os.path.join("data", "student_data.csv")
+DATA_PATH = os.path.join(
+    "data",
+    "students-export-2025-12-04T07_42_46.120Z.csv",
+)
 
 
 CURRENT_YEAR = 2025
@@ -23,6 +27,38 @@ TARGET_OKAY_GPA_THRESHOLD = 2.5
 
 BMI_BINS = [0, 18.5, 25, 30, np.inf]
 BMI_LABELS = ["Underweight", "Normal", "Overweight", "Obese"]
+
+
+# Column normalization map so exports match canonical schema
+EXPORT_COLUMN_MAP = {
+    "height": "height",
+    "weight": "weight",
+    "bmi": "BMI",
+    "level": "level",
+    "faculty": "faculty",
+    "department": "department",
+    "yob": "yob",
+    "year_of_birth": "yob",
+    "gpa": "GPA",
+    "cumulative_gpa": "GPA",
+    "gender": "gender",
+    "study_hours": "study_hours",
+    "study_hours_per_week": "study_hours",
+    "wassce_aggregate": "WASSCE_Aggregate",
+}
+
+
+# Numeric columns that often arrive as strings in exports
+NUMERIC_COLUMNS = [
+    "height",
+    "weight",
+    "BMI",
+    "level",
+    "yob",
+    "GPA",
+    "study_hours",
+    "WASSCE_Aggregate",
+]
 
 
 @dataclass
@@ -49,6 +85,9 @@ def load_data(path: str | None = None) -> pd.DataFrame:
         path = DATA_PATH
     df = pd.read_csv(path)
 
+    # Normalize column names coming from external exports into the canonical schema
+    df = df.rename(columns={col: EXPORT_COLUMN_MAP.get(col.strip().lower(), col) for col in df.columns})
+
     required_cols = [
         "height",
         "weight",
@@ -66,7 +105,28 @@ def load_data(path: str | None = None) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing expected columns: {missing}")
 
-    df["age"] = CURRENT_YEAR - df["yob"].astype(int)
+    # Coerce numerics that might have been saved as strings
+    for col in NUMERIC_COLUMNS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    if "gender" in df.columns:
+        df["gender"] = df["gender"].replace("", np.nan)
+
+    # Recompute BMI when source file misses it but height/weight exist
+    if "BMI" in df.columns:
+        needs_bmi = df["BMI"].isna() & df["height"].notna() & df["weight"].notna()
+        if needs_bmi.any():
+            height_m = df.loc[needs_bmi, "height"] / 100.0
+            df.loc[needs_bmi, "BMI"] = df.loc[needs_bmi, "weight"] / (height_m ** 2)
+        df["BMI"] = df["BMI"].round(1)
+
+    # Age is derived from year of birth so downstream code works consistently
+    if "yob" in df.columns:
+        yob_numeric = pd.to_numeric(df["yob"], errors="coerce")
+        df["age"] = (CURRENT_YEAR - yob_numeric).round().astype("Int64")
+    else:
+        df["age"] = np.nan
 
     df["BMI_Category"] = pd.cut(df["BMI"], bins=BMI_BINS, labels=BMI_LABELS, right=False)
 
@@ -166,9 +226,17 @@ def train_high_gpa_classifier(df: pd.DataFrame) -> ClassificationResult:
     X = df[features]
     y = df["High_GPA"].astype(int)
 
+    unique_classes = np.unique(y)
+    is_dummy_classifier = unique_classes.size < 2
+    classifier_step = (
+        DummyClassifier(strategy="constant", constant=int(unique_classes[0]))
+        if is_dummy_classifier
+        else LogisticRegression(max_iter=1000)
+    )
+
     model = Pipeline(steps=[
         ("preprocessor", preprocessor),
-        ("classifier", LogisticRegression(max_iter=1000)),
+        ("classifier", classifier_step),
     ])
 
     model.fit(X, y)
@@ -178,24 +246,25 @@ def train_high_gpa_classifier(df: pd.DataFrame) -> ClassificationResult:
     conf = confusion_matrix(y, y_pred)
     report = classification_report(y, y_pred)
 
-    classifier = model.named_steps["classifier"]
-    pre = model.named_steps["preprocessor"]
-
     num_features, cat_features = _feature_spec(df)
     num_feature_names = num_features
     cat_feature_names = []
+    pre = model.named_steps["preprocessor"]
     if cat_features:
         ohe = pre.named_transformers_["cat"].named_steps["onehot"]
         cat_feature_names = list(ohe.get_feature_names_out(cat_features))
 
     feature_names = num_feature_names + cat_feature_names
-
-    coef = classifier.coef_[0]
-    coefficients = pd.DataFrame({
-        "feature": feature_names,
-        "coefficient": coef,
-        "abs_coefficient": np.abs(coef),
-    }).sort_values(by="abs_coefficient", ascending=False).reset_index(drop=True)
+    if is_dummy_classifier:
+        coefficients = pd.DataFrame(columns=["feature", "coefficient", "abs_coefficient"])
+    else:
+        classifier = model.named_steps["classifier"]
+        coef = classifier.coef_[0]
+        coefficients = pd.DataFrame({
+            "feature": feature_names,
+            "coefficient": coef,
+            "abs_coefficient": np.abs(coef),
+        }).sort_values(by="abs_coefficient", ascending=False).reset_index(drop=True)
 
     return ClassificationResult(
         model=model,
