@@ -18,6 +18,7 @@ from model_utils import (
 )
 
 # Paths
+# Location of the primary dataset CSV used throughout the app.
 DATA_PATH = os.path.join(
     "data",
     "students-export-2025-12-11T09_00_10.417Z.csv",
@@ -39,6 +40,8 @@ st.title("Student Analytics Dashboard")
 # Data loading with cache (delegates to model utilities for normalization)
 @st.cache_data(show_spinner=True)
 def load_data(path: str) -> pd.DataFrame:
+    # Load the dataset and apply any normalization from model_utils.
+    # Caching ensures this runs once unless inputs change.
     df = load_model_data(path)
     return df
 
@@ -53,6 +56,7 @@ def _get_gemini_api_key() -> str | None:
 
 @st.cache_resource(show_spinner=False)
 def _resolve_supported_model(api_key: str) -> str:
+    # Configure the Gemini client and pick a supported text generation model.
     genai.configure(api_key=api_key)
     preferred = _with_model_prefix(GEMINI_MODEL_NAME)
     fallback_order = [
@@ -85,6 +89,7 @@ def _resolve_supported_model(api_key: str) -> str:
 
 @st.cache_resource(show_spinner=False)
 def _init_gemini_model(api_key: str):
+    # Initialize a GenerativeModel for chat based on available models.
     model_name = _resolve_supported_model(api_key)
     genai.configure(api_key=api_key)
     return genai.GenerativeModel(model_name)
@@ -98,7 +103,11 @@ def get_gemini_model():
 
 
 def build_knowledge_chunks(df: pd.DataFrame, reg_result, cls_result) -> list[str]:
-    """Create text snippets summarizing the dataset and models for retrieval."""
+    """Create text snippets summarizing the dataset and models for retrieval.
+
+    These chunks are later embedded and indexed so the Gemini chat can
+    retrieve grounded context from the dataset instead of generic knowledge.
+    """
     chunks: list[str] = []
     chunks.append(
         f"Dataset snapshot: {len(df)} students spanning {df['faculty'].nunique()} faculties, "
@@ -149,12 +158,9 @@ def build_knowledge_chunks(df: pd.DataFrame, reg_result, cls_result) -> list[str
         "Student scenario predictor accepts height, weight, level, faculty, department, year of birth, gender, study hours, and WASSCE aggregate to estimate GPA and high-GPA probability."
     )
 
-    readme_path = Path("README.md")
-    if readme_path.exists():
-        chunks.append(readme_path.read_text(encoding="utf-8"))
-
     # Detailed per-student descriptions batched into chunks for retrieval
     def _fmt(row, col, decimals: int | None = None):
+        # Helper: consistently format numeric fields and handle missing values.
         val = row.get(col)
         if pd.isna(val):
             return "unknown"
@@ -235,6 +241,7 @@ def _embed_text(text: str, api_key: str) -> np.ndarray | None:
 
 @st.cache_resource(show_spinner=True)
 def build_embedding_index(chunks: tuple[str, ...], api_key: str | None):
+    # Convert chunks to embeddings and fit a simple nearest-neighbors index.
     if not chunks or not api_key:
         return None, tuple()
     embedded_chunks: list[str] = []
@@ -260,6 +267,7 @@ def retrieve_contexts(
     api_key: str | None,
     top_k: int = DEFAULT_TOP_K,
 ) -> list[str]:
+    # Embed the question and find the closest chunk_texts to ground answers.
     if not question or index is None or not chunk_texts or not api_key:
         return []
     query_vec = _embed_text(question, api_key)
@@ -277,7 +285,11 @@ def retrieve_contexts(
 
 
 def maybe_generate_chart(df: pd.DataFrame, question: str):
-    """Render a quick visualization if the user explicitly requests a common chart."""
+    """Render a quick visualization if the user explicitly requests a common chart.
+
+    Looks for simple keywords in the question and produces standard charts
+    directly from the current dataframe selection.
+    """
     if not question:
         return None, None
     q = question.lower()
@@ -317,6 +329,7 @@ def generate_chat_response(
     api_key: str | None,
     stat_lookup: dict[str, dict[str, str]] | None = None,
 ):
+    # Retrieve context, build a grounded prompt, and query Gemini.
     q_lower = question.lower() if question else ""
     if stat_lookup:
         if "tallest" in q_lower:
@@ -352,6 +365,7 @@ def generate_chat_response(
     ).strip()
 
     try:
+        # Ask Gemini for a response using the grounded prompt.
         response = model.generate_content(prompt)
         text = getattr(response, "text", None)
         if not text and getattr(response, "candidates", None):
@@ -415,6 +429,23 @@ knowledge_chunks = build_knowledge_chunks(df, reg_result, cls_result)
 gemini_api_key = _get_gemini_api_key()
 embedding_index, embedded_chunks = build_embedding_index(tuple(knowledge_chunks), gemini_api_key)
 stat_lookup = build_stat_lookup(df)
+
+# Proactive validation of Gemini API key for clearer feedback
+if view_mode == "Ask AcademicAI":
+    if not gemini_api_key:
+        st.warning("Set the GEMINI_API_KEY in Streamlit secrets or environment to enable Gemini responses.")
+    else:
+        try:
+            genai.configure(api_key=gemini_api_key)
+            # Lightweight capability check; raises if key is invalid
+            _ = next(iter(genai.list_models()))
+        except Exception as exc:
+            st.error(
+                "Gemini API key appears invalid or unauthorized. Update GEMINI_API_KEY in .streamlit/secrets.toml or environment, then rerun."
+            )
+            st.caption(
+                "Quick setup: create .streamlit/secrets.toml with GEMINI_API_KEY=\"your_key\"; or set in environment before running Streamlit."
+            )
 
 if view_mode == "Dashboard":
     # Sidebar filters derived from data
