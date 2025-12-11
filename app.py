@@ -20,7 +20,7 @@ from model_utils import (
 # Paths
 DATA_PATH = os.path.join(
     "data",
-    "students-export-2025-12-04T07_42_46.120Z.csv",
+    "students-export-2025-12-11T09_00_10.417Z.csv",
 )
 
 GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "models/gemini-2.5-flash")

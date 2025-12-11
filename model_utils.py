@@ -14,7 +14,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 DATA_PATH = os.path.join(
     "data",
-    "students-export-2025-12-04T07_42_46.120Z.csv",
+    "students-export-2025-12-11T09_00_10.417Z.csv",
 )
 
 
