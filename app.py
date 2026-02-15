@@ -11,18 +11,14 @@ import streamlit as st
 from sklearn.neighbors import NearestNeighbors
 
 from model_utils import (
-    load_data as load_model_data,
+    process_student_data,
     train_regression_model,
     train_high_gpa_classifier,
     predict_student,
 )
+from db_utils import fetch_student_data
 
-# Paths
-# Location of the primary dataset CSV used throughout the app.
-DATA_PATH = os.path.join(
-    "data",
-    "students-export-2025-12-11T09_00_10.417Z.csv",
-)
+
 
 GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "models/gemini-2.5-flash")
 GEMINI_EMBED_MODEL = os.environ.get("GEMINI_EMBED_MODEL", "models/text-embedding-004")
@@ -37,12 +33,13 @@ DEFAULT_TOP_K = 5
 st.set_page_config(page_title="Student Analytics Dashboard", layout="wide")
 st.title("Student Analytics Dashboard")
 
-# Data loading with cache (delegates to model utilities for normalization)
-@st.cache_data(show_spinner=True)
-def load_data(path: str) -> pd.DataFrame:
-    # Load the dataset and apply any normalization from model_utils.
-    # Caching ensures this runs once unless inputs change.
-    df = load_model_data(path)
+# Data loading with cache
+@st.cache_data(show_spinner=True, ttl="10m")
+def load_data() -> pd.DataFrame:
+    # Fetch from Supabase and process
+    df = fetch_student_data()
+    if not df.empty:
+        df = process_student_data(df)
     return df
 
 
@@ -57,7 +54,7 @@ def _get_gemini_api_key() -> str | None:
 @st.cache_resource(show_spinner=False)
 def _resolve_supported_model(api_key: str) -> str:
     # Configure the Gemini client and pick a supported text generation model.
-    genai.configure(api_key=api_key)
+    genai.configure(api_key=api_key, transport="rest")
     preferred = _with_model_prefix(GEMINI_MODEL_NAME)
     fallback_order = [
         candidate
@@ -91,7 +88,7 @@ def _resolve_supported_model(api_key: str) -> str:
 def _init_gemini_model(api_key: str):
     # Initialize a GenerativeModel for chat based on available models.
     model_name = _resolve_supported_model(api_key)
-    genai.configure(api_key=api_key)
+    genai.configure(api_key=api_key, transport="rest")
     return genai.GenerativeModel(model_name)
 
 
@@ -232,7 +229,7 @@ def _embed_text(text: str, api_key: str) -> np.ndarray | None:
     if not text or not api_key:
         return None
     try:
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=api_key, transport="rest")
         response = genai.embed_content(model=GEMINI_EMBED_MODEL, content=text)
     except Exception:
         return None
@@ -378,43 +375,26 @@ def generate_chat_response(
     except Exception as exc:  # noqa: BLE001
         return (f"Gemini request failed: {exc}", contexts)
 
-# Regenerate dataset utilities (fallback synthetic generator)
-def regenerate_dataset(n_rows: int = 500, seed: int | None = 42) -> None:
-    try:
-        # Import from local script
-        from generate_student_data import generate_dataset, save_dataset
-    except Exception as e:
-        st.error(f"Failed to import generator: {e}")
-        return
-    df_new = generate_dataset(n_rows=n_rows, seed=seed)
-    save_dataset(df_new, DATA_PATH)
-
-# Sidebar controls for administrative actions
+# Sidebar controls
 with st.sidebar:
     st.header("Controls")
-    with st.expander("Generate / Reload Data", expanded=True):
-        seed = st.number_input("Random seed", min_value=0, value=42, step=1)
-        n_rows = st.number_input("Rows", min_value=100, max_value=10000, value=500, step=100)
-        if st.button("Regenerate dataset", type="primary"):
-            regenerate_dataset(n_rows=int(n_rows), seed=int(seed))
-            st.cache_data.clear()
-            st.success("Dataset regenerated.")
-            st.rerun()
+    if st.button("Refresh Data", type="primary"):
+        st.cache_data.clear()
+        st.success("Data cache cleared. Reloading...")
+        st.rerun()
 
 with st.sidebar:
     st.header("Experience")
     view_mode = st.radio("Choose view", options=["Dashboard", "Ask AcademicAI"], index=0)
 
-# Ensure data file exists before proceeding
-if not os.path.exists(DATA_PATH):
-    st.warning("Dataset not found. Generating a fresh dataset...")
-    regenerate_dataset(n_rows=500, seed=42)
-
-# Load data and train ML models
+# Load data from database
 try:
-    df = load_data(DATA_PATH)
+    df = load_data()
+    if df.empty:
+        st.warning("No student data found in the database.")
+        st.stop()
 except Exception as e:
-    st.error(f"Error loading data: {e}")
+    st.error(f"Error loading data from database: {e}")
     st.stop()
 
 @st.cache_data(show_spinner=True)
@@ -436,12 +416,12 @@ if view_mode == "Ask AcademicAI":
         st.warning("Set the GEMINI_API_KEY in Streamlit secrets or environment to enable Gemini responses.")
     else:
         try:
-            genai.configure(api_key=gemini_api_key)
+            genai.configure(api_key=gemini_api_key, transport="rest")
             # Lightweight capability check; raises if key is invalid
             _ = next(iter(genai.list_models()))
         except Exception as exc:
             st.error(
-                "Gemini API key appears invalid or unauthorized. Update GEMINI_API_KEY in .streamlit/secrets.toml or environment, then rerun."
+                f"Gemini API key appears invalid or unauthorized. Error details: {exc}. Update GEMINI_API_KEY in .streamlit/secrets.toml or environment, then rerun."
             )
             st.caption(
                 "Quick setup: create .streamlit/secrets.toml with GEMINI_API_KEY=\"your_key\"; or set in environment before running Streamlit."

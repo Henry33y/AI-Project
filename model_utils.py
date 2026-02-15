@@ -80,11 +80,7 @@ class ClassificationResult:
     coefficients: pd.DataFrame
 
 
-def load_data(path: str | None = None) -> pd.DataFrame:
-    if path is None:
-        path = DATA_PATH
-    df = pd.read_csv(path)
-
+def process_student_data(df: pd.DataFrame) -> pd.DataFrame:
     # Normalize column names coming from external exports into the canonical schema
     df = df.rename(columns={col: EXPORT_COLUMN_MAP.get(col.strip().lower(), col) for col in df.columns})
 
@@ -103,6 +99,8 @@ def load_data(path: str | None = None) -> pd.DataFrame:
     ]
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
+        # Check if missing columns are just due to case sensitivity or slightly different naming before failing
+        # But EXPORT_COLUMN_MAP should have handled it.
         raise ValueError(f"Missing expected columns: {missing}")
 
     # Coerce numerics that might have been saved as strings
@@ -134,6 +132,13 @@ def load_data(path: str | None = None) -> pd.DataFrame:
     df["Okay_GPA"] = ((df["GPA"] >= TARGET_OKAY_GPA_THRESHOLD) & (df["GPA"] < TARGET_HIGH_GPA_THRESHOLD)).astype(int)
 
     return df
+
+
+def load_data(path: str | None = None) -> pd.DataFrame:
+    if path is None:
+        path = DATA_PATH
+    df = pd.read_csv(path)
+    return process_student_data(df)
 
 
 def _feature_spec(df: pd.DataFrame) -> Tuple[list, list]:
