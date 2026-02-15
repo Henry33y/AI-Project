@@ -1,55 +1,68 @@
-# AcademicAI Dataset Generator
+# AcademicAI Dashboard
 
-This repository includes a simple Python script to generate 500 rows of dummy student data for a university analytics project.
+A data analytics and RAG (Retrieval-Augmented Generation) chatbot for university student data. This application connects directly to the **Supabase** database used by the **Pentecost Student Hub** to provide real-time insights and AI-powered answers.
 
-## What it creates
-- Output file: `data/student_data.csv`
-- Rows: 500
-- Columns: `height, weight, BMI, level, faculty, department, dob, GPA, gender, age, study_hours, WASSCE_Aggregate`
+## Features
 
-## Requirements
-- Python 3.10+
-- Packages: `pandas`, `numpy`
+-   **Live Data**: Fetches student records directly from Supabase (no manual CSV uploads).
+-   **Interactive Dashboard**: Filter students by faculty, department, GPA, and more.
+-   **AI Chatbot (RAG)**: Ask questions about the data using Google's Gemini models (e.g., "Which faculty has the highest average GPA?").
+-   **Predictive Models**: Built-in regression (GPA prediction) and classification (High GPA probability).
+-   **Visualizations**: Dynamic charts for GPA distribution, relationships, and correlations.
 
-If you're using a virtual environment, make sure it's activated and install requirements:
+## Prerequisites
+
+-   Python 3.10+
+-   Supabase project credentials
+-   Google Gemini API Key
+
+## Installation
+
+1.  **Clone the repository** (if you haven't already).
+2.  **Create and activate a virtual environment**:
+    ```powershell
+    python -m venv venv
+    .\venv\Scripts\activate
+    ```
+3.  **Install dependencies**:
+    ```powershell
+    pip install -r requirements.txt
+    ```
+
+## Configuration
+
+Create a file named `.streamlit/secrets.toml` in the project root and add your credentials:
+
+```toml
+SUPABASE_URL = "your_supabase_url"
+SUPABASE_KEY = "your_supabase_anon_key"
+ADMIN_EMAIL = "admin_email_for_bypass_policy"
+ADMIN_PASSWORD = "admin_password"
+GEMINI_API_KEY = "your_gemini_api_key_here"
+```
+
+> **Note**: The application uses the `transport="rest"` option for Gemini to verify connections in environments that might block standard gRPC ports.
+
+## Running the App
+
+Launch the Streamlit dashboard:
 
 ```powershell
-pip install -r requirements.txt
+streamlit run app.py
 ```
 
-## Generate the dataset
-Run the generator script:
+The app will open in your browser at `http://localhost:8501`.
 
-```powershell
-# If using the active Python
-python .\generate_student_data.py
+## Usage
 
-# Or explicitly via venv (Windows PowerShell)
-.\venv\Scripts\python.exe .\generate_student_data.py
-```
+-   **Dashboard View**: Use the sidebar filters to explore specific student segments.
+-   **Ask AcademicAI View**: Switch views in the sidebar to chat with the AI about the dataset.
+-   **Refresh Data**: Click the "Refresh Data" button in the sidebar to pull the latest records from the database.
 
-On success, you should see a message like:
+## Project Structure
 
-```
-Generated 500 rows -> data\student_data.csv
-```
-
-## Streamlit app
-Launch the interactive dashboard (filters, charts, download, regenerate data):
-
-```powershell
-streamlit run .\app.py
-```
-
-Then open the URL shown in the terminal, e.g. `http://localhost:8501`.
-
-## Notes
-- Height is in centimeters (150–200).
-- Weight is in kilograms (50–100).
-- BMI is computed as kg/m^2 and rounded to 1 decimal place.
-- Level is one of 100, 200, 300, 400.
-- Faculty is chosen from Computing, Business, Theology, Engineering; department matches the selected faculty.
-- Year of Birth (`yob`) is between 1998 and 2007; `age` is derived at runtime from `yob`.
-- GPA is a float in [1.5, 4.0], rounded to 2 decimals.
-- Study hours is a float in [1.0, 10.0], rounded to 1 decimal.
-- WASSCE_Aggregate is an integer in [6, 48].
+-   `app.py`: Main Streamlit application.
+-   `db_utils.py`: Supabase connection and data fetching logic.
+-   `model_utils.py`: Data processing, feature engineering, and machine learning models.
+-   `test_db.py`: Script to verify database connectivity.
+-   `test_gemini.py`: Script to verify Gemini API connectivity.
