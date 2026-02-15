@@ -4,7 +4,9 @@ A data analytics and RAG (Retrieval-Augmented Generation) chatbot for university
 
 ## Features
 
--   **Live Data**: Fetches student records directly from Supabase (no manual CSV uploads).
+-   **Live Data**: Fetches student records directly from **Supabase**.
+    -   Data is collected via the [Pentecost Student Hub Form](https://pu-student-data-collection.netlify.app/).
+    -   Source code for the data collection app: [GitHub Repository](https://github.com/Henry33y/pentecost-student-hub.git).
 -   **Interactive Dashboard**: Filter students by faculty, department, GPA, and more.
 -   **AI Chatbot (RAG)**: Ask questions about the data using Google's Gemini models (e.g., "Which faculty has the highest average GPA?").
 -   **Predictive Models**: Built-in regression (GPA prediction) and classification (High GPA probability).
